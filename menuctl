@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import lzma
+import os
+from pathlib import Path
+import re
+import tarfile
+
+ROOT = Path(__file__).resolve().parent
+VERSION_FILE = ROOT / "VERSION"
+README = ROOT / "README.md"
+MANIFEST = ROOT / "provider.json"
+SUMS = ROOT / "SHA256SUMS"
+RELEASE_ROOT = ROOT / ".release"
+PROVIDER_NAME = "treeforge_bootstrap_menu"
+PROVIDER_ABI = 1
+VERSION_RE = re.compile(r"v1\.0b[0-9]+")
+
+class ProviderError(RuntimeError):
+    pass
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+def versions() -> dict[str,str]:
+    if not VERSION_FILE.is_file():
+        raise ProviderError(f"VERSION is missing: {VERSION_FILE}")
+    out: dict[str,str] = {}
+    for raw in VERSION_FILE.read_text(encoding="utf-8").splitlines():
+        line=raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise ProviderError(f"invalid VERSION entry: {line!r}")
+        k,v=line.split("=",1); k=k.strip(); v=v.strip()
+        if not k or not v or k in out:
+            raise ProviderError(f"invalid VERSION entry: {line!r}")
+        out[k]=v
+    required={"TREEFORGE_BOOT_MENU_VERSION","TREEFORGE_BOOT_MANAGER_VERSION","TREEFORGE_MENU_ABI"}
+    if set(out)!=required:
+        raise ProviderError(f"VERSION keys changed: {sorted(out)!r}")
+    if VERSION_RE.fullmatch(out["TREEFORGE_BOOT_MENU_VERSION"]) is None:
+        raise ProviderError("unsupported menu VERSION")
+    if VERSION_RE.fullmatch(out["TREEFORGE_BOOT_MANAGER_VERSION"]) is None:
+        raise ProviderError("unsupported Boot Manager VERSION")
+    if out["TREEFORGE_MENU_ABI"] != str(PROVIDER_ABI):
+        raise ProviderError("menu ABI changed")
+    return out
+
+def version() -> str:
+    return versions()["TREEFORGE_BOOT_MENU_VERSION"]
+
+def boot_manager_version() -> str:
+    return versions()["TREEFORGE_BOOT_MANAGER_VERSION"]
+
+def _read_manifest() -> dict[str,object]:
+    try:
+        data=json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError,json.JSONDecodeError) as e:
+        raise ProviderError(f"invalid provider.json: {e}") from e
+    if not isinstance(data,dict):
+        raise ProviderError("provider.json is not an object")
+    return data
+
+def _write_manifest(data: dict[str,object]) -> None:
+    MANIFEST.write_text(json.dumps(data,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+
+def manifest() -> dict[str,object]:
+    data=_read_manifest(); v=versions()
+    if data.get("schema_version")!=1: raise ProviderError("unsupported provider schema")
+    if data.get("provider")!=PROVIDER_NAME: raise ProviderError("provider identity changed")
+    if data.get("version")!=v["TREEFORGE_BOOT_MENU_VERSION"]: raise ProviderError("VERSION/provider mismatch")
+    if data.get("abi")!=PROVIDER_ABI: raise ProviderError("menu ABI changed")
+    components=data.get("component_versions")
+    if not isinstance(components,dict) or components.get("boot_manager")!=v["TREEFORGE_BOOT_MANAGER_VERSION"]:
+        raise ProviderError("Boot Manager VERSION/provider mismatch")
+    return data
+
+def expected_files(data: dict[str,object]):
+    profile=data.get("profile"); userspace=data.get("userspace")
+    if not isinstance(profile,dict) or not isinstance(userspace,dict):
+        raise ProviderError("provider payload contract is incomplete")
+    records=[("default_profile",profile.get("default"))]
+    records.extend((name,userspace.get(name)) for name in ("core","ui","touch","controller"))
+    for label,record in records:
+        if not isinstance(record,dict): raise ProviderError(f"provider {label} contract is missing")
+        path=record.get("path"); digest=record.get("sha256")
+        if not isinstance(path,str) or not path: raise ProviderError(f"provider {label} path is invalid")
+        if not isinstance(digest,str) or len(digest)!=64: raise ProviderError(f"provider {label} SHA256 is invalid")
+        yield path,digest
+
+def _sync_payload_hashes(data: dict[str,object]) -> None:
+    profile=data["profile"]; userspace=data["userspace"]
+    assert isinstance(profile,dict) and isinstance(userspace,dict)
+    records=[profile["default"],userspace["core"],userspace["ui"],userspace["touch"],userspace["controller"]]
+    for record in records:
+        assert isinstance(record,dict); rel=record["path"]; assert isinstance(rel,str)
+        path=ROOT/rel
+        if not path.is_file(): raise ProviderError(f"missing provider payload: {rel}")
+        record["sha256"]=sha256(path)
+
+def _checksum_members(data: dict[str,object]) -> list[str]:
+    members=["VERSION","README.md","provider.json","menuctl","tests/test_provider.py"]
+    members.extend(rel for rel,_ in expected_files(data))
+    return sorted(set(members))
+
+def _write_sums(data: dict[str,object]) -> None:
+    lines=[]
+    for rel in _checksum_members(data):
+        p=ROOT/rel
+        if not p.is_file(): raise ProviderError(f"checksum member is missing: {rel}")
+        lines.append(f"{sha256(p)}  {rel}\n")
+    SUMS.write_text("".join(lines),encoding="utf-8")
+
+def sync() -> None:
+    v=versions(); data=_read_manifest()
+    data["version"]=v["TREEFORGE_BOOT_MENU_VERSION"]
+    data["abi"]=PROVIDER_ABI
+    data["component_versions"]={"boot_manager":v["TREEFORGE_BOOT_MANAGER_VERSION"]}
+    _sync_payload_hashes(data); _write_manifest(data)
+    lines=README.read_text(encoding="utf-8").splitlines()
+    if not lines: raise ProviderError("README.md is empty")
+    lines[0]=f"# TreeForge Bootstrap Menu — {v['TREEFORGE_BOOT_MENU_VERSION']}"
+    README.write_text("\n".join(lines)+"\n",encoding="utf-8")
+    _write_sums(data)
+    print(f"VERSION={v['TREEFORGE_BOOT_MENU_VERSION']}")
+    print(f"BOOT_MANAGER_VERSION={v['TREEFORGE_BOOT_MANAGER_VERSION']}")
+    print("TREEFORGE_BOOTSTRAP_MENU_SYNC=PASS")
+
+def _verify_sums() -> None:
+    if not SUMS.is_file(): raise ProviderError("SHA256SUMS is missing")
+    seen=set()
+    for raw in SUMS.read_text(encoding="utf-8").splitlines():
+        if not raw.strip(): continue
+        try: digest,rel=raw.split("  ",1)
+        except ValueError as e: raise ProviderError(f"invalid SHA256SUMS line: {raw!r}") from e
+        if rel in seen: raise ProviderError(f"duplicate SHA256SUMS path: {rel}")
+        seen.add(rel); p=ROOT/rel
+        if not p.is_file(): raise ProviderError(f"SHA256SUMS path is missing: {rel}")
+        actual=sha256(p)
+        if actual!=digest: raise ProviderError(f"SHA256SUMS mismatch: {rel}\nexpected={digest}\nactual={actual}")
+    expected=set(_checksum_members(manifest()))
+    if seen!=expected: raise ProviderError(f"SHA256SUMS membership changed: expected={sorted(expected)!r} actual={sorted(seen)!r}")
+
+def _verify_readme_version() -> None:
+    current=version(); text=README.read_text(encoding="utf-8"); lines=text.splitlines()
+    if not lines or lines[0] != f"# TreeForge Bootstrap Menu — {current}": raise ProviderError("README title does not match VERSION")
+    self_versions=VERSION_RE.findall(text)
+    if self_versions != [current]: raise ProviderError("README must contain exactly one component version, in the title")
+
+def verify() -> None:
+    data=manifest(); _verify_readme_version(); _verify_sums()
+    for rel,expected in expected_files(data):
+        p=ROOT/rel
+        if not p.is_file(): raise ProviderError(f"missing provider file: {rel}")
+        actual=sha256(p)
+        if actual!=expected: raise ProviderError(f"SHA256 mismatch: {rel}\nexpected={expected}\nactual={actual}")
+    userspace=data["userspace"]; profile=data["profile"]
+    assert isinstance(userspace,dict) and isinstance(profile,dict)
+    markers={
+        "core":["TFB_ACTION_BOOT_ANDROID_SLOT_A","struct tfb_menu_page","__TREEFORGE_MENU_PROFILE__"],
+        "ui":["static int tfb_ui_landscape_supported(","static void tfb_fb_render_menu(","TFB_BUFFERED_MENU_PRESENT_V1"],
+        "touch":["static void tfb_touch_reset_state(","static int tfb_menu_touch_row(","static int tfb_touch_process_event("],
+        "controller":["static void tfb_menu_activate_selected(","static void tfb_run_menu(void)"],
+    }
+    for name,needles in markers.items():
+        record=userspace[name]; assert isinstance(record,dict); rel=record["path"]; assert isinstance(rel,str)
+        text=(ROOT/rel).read_text(encoding="utf-8")
+        for needle in needles:
+            if needle not in text: raise ProviderError(f"{name} marker missing: {needle}")
+    default=profile["default"]; assert isinstance(default,dict); rel=default["path"]; assert isinstance(rel,str)
+    pdata=json.loads((ROOT/rel).read_text(encoding="utf-8"))
+    if pdata.get("schema")!=1 or pdata.get("profile_id")!="treeforge-default": raise ProviderError("default menu profile identity changed")
+    v=versions()
+    print(f"PROVIDER={PROVIDER_NAME}")
+    print(f"VERSION={v['TREEFORGE_BOOT_MENU_VERSION']}")
+    print(f"BOOT_MANAGER_VERSION={v['TREEFORGE_BOOT_MANAGER_VERSION']}")
+    print(f"ABI={PROVIDER_ABI}")
+    print("VERSION_SOURCE=VERSION")
+    print("README_VERSION_AUDIT=PASS")
+    print("MENU_PROFILE=PASS")
+    print("MENU_RUNTIME_FRAGMENTS=PASS")
+    print("TREEFORGE_BOOTSTRAP_MENU_VERIFY=PASS")
+
+def _archive_members(data: dict[str,object]) -> list[str]:
+    return sorted(set(_checksum_members(data)+["SHA256SUMS"]))
+
+def package() -> Path:
+    verify(); data=manifest(); current=version(); RELEASE_ROOT.mkdir(exist_ok=True)
+    name=f"treeforge-bootstrap-menu-{current}-provider.tar.xz"; destination=RELEASE_ROOT/name; sidecar=RELEASE_ROOT/f"{name}.sha256"; prefix=PROVIDER_NAME
+    epoch=int(os.environ.get("SOURCE_DATE_EPOCH","0"))
+    with lzma.open(destination,"wb",format=lzma.FORMAT_XZ,preset=9) as xz:
+        with tarfile.open(fileobj=xz,mode="w",format=tarfile.PAX_FORMAT) as bundle:
+            for rel in _archive_members(data):
+                raw=(ROOT/rel).read_bytes(); info=tarfile.TarInfo(f"{prefix}/{rel}"); info.size=len(raw); info.mode=0o755 if rel=="menuctl" else 0o644; info.uid=info.gid=0; info.uname=info.gname=""; info.mtime=epoch
+                import io; bundle.addfile(info,io.BytesIO(raw))
+    digest=sha256(destination); sidecar.write_text(f"{digest}  {name}\n",encoding="utf-8")
+    print(f"VERSION={current}"); print(f"ARCHIVE={destination}"); print(f"BYTES={destination.stat().st_size}"); print(f"SHA256={digest}"); print("TREEFORGE_BOOTSTRAP_MENU_PACKAGE=PASS")
+    return destination
+
+def main() -> None:
+    p=argparse.ArgumentParser(prog="menuctl"); p.add_argument("command",choices=("sync","verify","package")); args=p.parse_args()
+    try:
+        if args.command=="sync": sync()
+        elif args.command=="verify": verify()
+        else: package()
+    except ProviderError as e:
+        p.error(str(e))
+
+if __name__=="__main__": main()

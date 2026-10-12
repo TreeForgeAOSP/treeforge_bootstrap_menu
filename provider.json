@@ -1,0 +1,33 @@
+{
+  "abi": 1,
+  "component_versions": {
+    "boot_manager": "v1.0b3"
+  },
+  "profile": {
+    "default": {
+      "path": "profiles/treeforge-default.json",
+      "sha256": "2876f9607a532ae03311522744697e003e5c8cce292d1bfdf392c9318f10ecae"
+    }
+  },
+  "provider": "treeforge_bootstrap_menu",
+  "schema_version": 1,
+  "userspace": {
+    "controller": {
+      "path": "userspace/menu-controller-v1.inc",
+      "sha256": "15a28d9e61faf2dd8a4225eba146a2f900f6e7b04b8a8e87486f3ec4ca696a42"
+    },
+    "core": {
+      "path": "userspace/menu-core-v1.inc",
+      "sha256": "4cd814ebb453ae0eeace74976c896525ba805c58df8ad535274c031bcf002937"
+    },
+    "touch": {
+      "path": "userspace/menu-touch-v1.inc",
+      "sha256": "438cb044d3e59d5e109f5b814ee4be6ad08e83cfd7137b6d2c25788db8bdf437"
+    },
+    "ui": {
+      "path": "userspace/menu-ui-v1.inc",
+      "sha256": "8b44a0dfa51c88d872568d060906882886c49a10ac8fa055cc09a0de762a73dd"
+    }
+  },
+  "version": "v1.0b1"
+}

@@ -1,0 +1,5 @@
+.release/
+.smoke/*
+!.smoke/.gitkeep
+__pycache__/
+*.pyc
