@@ -2,24 +2,20 @@
 
 Boot Manager menu provider for TreeForge Bootstrap on Pixel Tablet (`tangorpro`).
 
+## Build
+
+    ./menuctl build
+
+A successful build verifies the provider and promotes it to `out/development-provider/current`. The newest five successful runs are retained.
+
 ## Verify
 
-```bash
-./menuctl verify
-```
+    ./menuctl verify
 
 ## Package
 
-```bash
-./menuctl package
-```
+    ./menuctl package
 
-Bootstrap resolves the latest published compatible provider automatically. Unreleased development can be selected explicitly with `--menu-provider PATH`.
+Package archives the exact current development provider into `.release/`. It does not rebuild it.
 
-## Source
-
-- `VERSION` — authoritative menu and Boot Manager versions
-- `profiles/` — menu profiles
-- `userspace/` — freestanding menu runtime fragments
-
-Generated release output is not source.
+`VERSION` is authoritative.

@@ -3,3 +3,4 @@
 !.smoke/.gitkeep
 __pycache__/
 *.pyc
+out/
