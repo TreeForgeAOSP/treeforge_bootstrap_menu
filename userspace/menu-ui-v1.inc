@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * TFB_V2_STRING_EQUAL_FORWARD_DECL
  *

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 static void tfb_touch_reset_state(
     struct tfb_touch_state *state
 ) {

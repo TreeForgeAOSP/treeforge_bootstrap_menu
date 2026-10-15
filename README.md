@@ -19,3 +19,9 @@ Successful builds publish `out/development-provider/current` and retain the newe
 Release packages the exact current development provider into `out/releases/<version>/assets`. It does not rebuild it.
 
 `VERSION` is authoritative.
+
+## License
+
+TreeForge Bootstrap Menu, Boot Manager menu code, host tooling,
+profiles, tests, documentation, and provider metadata are licensed
+under Apache-2.0. See `LICENSE` and `LICENSES/Apache-2.0.txt`.

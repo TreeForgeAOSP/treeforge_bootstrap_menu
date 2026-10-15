@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 static void tfb_menu_activate_selected(
     const struct tfb_menu_page **page,
     const struct tfb_menu_page **page_stack,

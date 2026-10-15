@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
 import argparse
@@ -118,7 +119,15 @@ def _sync_payload_hashes(data: dict[str,object]) -> None:
         record["sha256"]=sha256(path)
 
 def _checksum_members(data: dict[str,object]) -> list[str]:
-    members=["VERSION","README.md","provider.json","menuctl","tests/test_provider.py"]
+    members=[
+        "VERSION",
+        "README.md",
+        "LICENSE",
+        "LICENSES/Apache-2.0.txt",
+        "provider.json",
+        "menuctl",
+        "tests/test_provider.py",
+    ]
     members.extend(rel for rel,_ in expected_files(data))
     return sorted(set(members))
 

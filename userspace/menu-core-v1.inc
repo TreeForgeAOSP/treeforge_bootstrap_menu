@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #define TFB_ACTION_NONE 0
 #define TFB_ACTION_BOOT_ANDROID_SLOT_A 1
 #define TFB_ACTION_BOOT_ANDROID_SLOT_B 2

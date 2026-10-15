@@ -1,0 +1,12 @@
+TreeForge Bootstrap Menu licensing
+==================================
+
+TreeForge Bootstrap Menu, Boot Manager menu code, host tooling,
+profiles, tests, documentation, and provider metadata in this
+repository are licensed under Apache-2.0.
+
+The license text is provided in:
+
+    LICENSES/Apache-2.0.txt
+
+Individual source files may carry SPDX identifiers where appropriate.

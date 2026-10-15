@@ -1,7 +1,7 @@
 {
   "abi": 1,
   "component_versions": {
-    "boot_manager": "v1.0b3"
+    "boot_manager": "v1.0b1"
   },
   "profile": {
     "default": {
@@ -14,19 +14,19 @@
   "userspace": {
     "controller": {
       "path": "userspace/menu-controller-v1.inc",
-      "sha256": "15a28d9e61faf2dd8a4225eba146a2f900f6e7b04b8a8e87486f3ec4ca696a42"
+      "sha256": "e23729311356bad4c3c7dd7abd3b2d14e24e1955f5a1af50441f3c7053378de2"
     },
     "core": {
       "path": "userspace/menu-core-v1.inc",
-      "sha256": "4cd814ebb453ae0eeace74976c896525ba805c58df8ad535274c031bcf002937"
+      "sha256": "f2b8a566b1d8001235f3a8a3d41efca058fdd66151bf3ad98347017d5ba3848c"
     },
     "touch": {
       "path": "userspace/menu-touch-v1.inc",
-      "sha256": "438cb044d3e59d5e109f5b814ee4be6ad08e83cfd7137b6d2c25788db8bdf437"
+      "sha256": "46195eef20f25558d35f0bfa4f3078184a9835bbf45c31f2badb9096ee314ee9"
     },
     "ui": {
       "path": "userspace/menu-ui-v1.inc",
-      "sha256": "8b44a0dfa51c88d872568d060906882886c49a10ac8fa055cc09a0de762a73dd"
+      "sha256": "cf7e4f7ca3e49247f3f5eb00f3015ae5927b0ad873b4c16d3c73f30be46faa96"
     }
   },
   "version": "v1.0b1"
