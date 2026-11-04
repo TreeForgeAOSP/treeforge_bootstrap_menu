@@ -23,5 +23,5 @@ Release packages the exact current development provider into `out/releases/<vers
 ## License
 
 TreeForge Bootstrap Menu, Boot Manager menu code, host tooling,
-profiles, tests, documentation, and provider metadata are licensed
+profiles, documentation, and provider metadata are licensed
 under Apache-2.0. See `LICENSE` and `LICENSES/Apache-2.0.txt`.

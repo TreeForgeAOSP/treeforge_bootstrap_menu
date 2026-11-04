@@ -126,7 +126,6 @@ def _checksum_members(data: dict[str,object]) -> list[str]:
         "LICENSES/Apache-2.0.txt",
         "provider.json",
         "menuctl",
-        "tests/test_provider.py",
     ]
     members.extend(rel for rel,_ in expected_files(data))
     return sorted(set(members))
