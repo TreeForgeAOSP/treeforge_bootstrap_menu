@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import tarfile
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -221,6 +222,61 @@ def read_provider_identity() -> dict:
     return doc
 
 
+
+
+def verify_menu_assets(assets: Path, tag: str) -> None:
+    """Validate the menu provider checksum manifest inside its archive."""
+    archive_name = f'treeforge-bootstrap-menu-{tag}-provider.tar.xz'
+    archive = assets / archive_name
+    sidecar = assets / f'{archive_name}.sha256'
+    sums = assets / 'SHA256SUMS'
+    provider = assets / 'provider.json'
+    required = {archive.name, sidecar.name, sums.name, provider.name}
+    require({p.name for p in assets.iterdir()} == required,
+            'menu staged asset membership changed')
+    require(all(p.is_file() for p in (archive, sidecar, sums, provider)),
+            'menu staged asset missing')
+    match = re.fullmatch(r'([a-f0-9]{64})  (.+)\n?', sidecar.read_text())
+    require(match is not None and match.group(2) == archive_name,
+            'menu archive sidecar malformed')
+    require(sha(archive) == match.group(1),
+            'menu archive sidecar checksum mismatch')
+    expected = {}
+    for line in sums.read_text().splitlines():
+        match = re.fullmatch(r'([a-f0-9]{64})  (.+)', line)
+        require(match is not None, 'menu provider SHA256SUMS malformed')
+        name = match.group(2)
+        rel = Path(name)
+        require(name not in expected and name not in ('', '.')
+                and not rel.is_absolute() and '..' not in rel.parts,
+                'menu provider SHA256SUMS path invalid or duplicated')
+        expected[name] = match.group(1)
+    require(expected, 'menu provider SHA256SUMS empty')
+    observed = set()
+    prefix = 'treeforge_bootstrap_menu/'
+    with tarfile.open(archive, mode='r:xz') as bundle:
+        for member in bundle:
+            require(member.isfile() and member.name.startswith(prefix),
+                    'menu archive member is not a regular provider file')
+            relative = member.name[len(prefix):]
+            require(relative not in observed and
+                    relative in (set(expected) | {'SHA256SUMS'}),
+                    'menu archive member unexpected or duplicated')
+            observed.add(relative)
+            stream = bundle.extractfile(member)
+            require(stream is not None, 'menu archive member unreadable')
+            digest = hashlib.sha256()
+            with stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+            required_hash = sha(sums) if relative == 'SHA256SUMS' else expected[relative]
+            require(digest.hexdigest() == required_hash,
+                    f'menu archive member checksum mismatch: {relative}')
+            if relative == 'provider.json':
+                require(digest.hexdigest() == sha(provider),
+                        'menu loose provider.json differs from archive')
+    require(observed == set(expected) | {'SHA256SUMS'},
+            'menu archive member set incomplete')
 def staged_assets(tag: str) -> list[Path]:
     assets = ROOT / 'out' / 'releases' / tag / 'assets'
     require(assets.is_dir(), f'no prepared release assets: {assets}; run ./release prepare')
@@ -228,15 +284,18 @@ def staged_assets(tag: str) -> list[Path]:
     require(bool(files), 'empty prepared release')
     sums = assets / 'SHA256SUMS'
     require(sums.is_file(), f'{REPO}: staged SHA256SUMS missing')
-    for line in sums.read_text().splitlines():
-        if not line.strip():
-            continue
-        match = re.fullmatch(r'([a-f0-9]{64})\s+\*?(.+)', line)
-        require(match is not None, 'malformed SHA256SUMS line')
-        rel = Path(match.group(2))
-        require(not rel.is_absolute() and '..' not in rel.parts, 'unsafe checksum path')
-        path = assets / rel
-        require(path.is_file() and sha(path) == match.group(1), f'checksum mismatch: {rel}')
+    if REPO == 'treeforge_bootstrap_menu':
+        verify_menu_assets(assets, tag)
+    else:
+        for line in sums.read_text().splitlines():
+            if not line.strip():
+                continue
+            match = re.fullmatch(r'([a-f0-9]{64})\s+\*?(.+)', line)
+            require(match is not None, 'malformed SHA256SUMS line')
+            rel = Path(match.group(2))
+            require(not rel.is_absolute() and '..' not in rel.parts, 'unsafe checksum path')
+            path = assets / rel
+            require(path.is_file() and sha(path) == match.group(1), f'checksum mismatch: {rel}')
     print(f'STAGED_ASSETS=PASS COUNT={len(files)}')
     return files
 
@@ -297,6 +356,9 @@ def update_next_version(published_tag: str) -> None:
             'post-publish worktree is not clean')
     originals: dict[Path, str] = {version_file(): raw}
     files = ['VERSION']
+    if REPO == 'treeforge_bootstrap_menu':
+        files += ['README.md', 'provider.json', 'SHA256SUMS']
+        originals.update({ROOT / name: (ROOT / name).read_text() for name in files[1:]})
     if REPO == 'treeforge_manager':
         code = ROOT / 'ANDROID_VERSION_CODE'
         code_raw = code.read_text()
@@ -305,6 +367,9 @@ def update_next_version(published_tag: str) -> None:
         files.append('ANDROID_VERSION_CODE')
     try:
         version_file().write_text(changed)
+        if REPO == 'treeforge_bootstrap_menu':
+            cmd([str(ROOT / 'menuctl'), 'sync'])
+            cmd([str(ROOT / 'menuctl'), 'verify'])
         if REPO == 'treeforge_manager':
             code.write_text(f'{int(originals[code].strip()) + 1}\n')
         git('add', '--', *files)
