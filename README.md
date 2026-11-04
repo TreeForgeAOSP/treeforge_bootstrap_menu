@@ -1,4 +1,4 @@
-# TreeForge Bootstrap Menu — v1.0b2
+# TreeForge Bootstrap Menu — v1.0b3
 
 Boot Manager menu provider for TreeForge Bootstrap on Pixel Tablet (`tangorpro`).
 
