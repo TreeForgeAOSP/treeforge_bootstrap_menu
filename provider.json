@@ -1,7 +1,7 @@
 {
   "abi": 1,
   "component_versions": {
-    "boot_manager": "v1.0b1"
+    "boot_manager": "v1.0b2"
   },
   "profile": {
     "default": {
@@ -29,5 +29,5 @@
       "sha256": "cf7e4f7ca3e49247f3f5eb00f3015ae5927b0ad873b4c16d3c73f30be46faa96"
     }
   },
-  "version": "v1.0b1"
+  "version": "v1.0b2"
 }
